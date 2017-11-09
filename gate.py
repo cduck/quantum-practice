@@ -8,6 +8,19 @@ import util
 # Specific gate declarations at end
 
 
+def composite(name, size, **kwargs):
+    ''' Function decorator to turn a function into a Gate that applies a
+        series of primitive gates '''
+    def decorate(f):
+        return Gate(name, size, composite=f, **kwargs)
+    return decorate
+def compositeGeneric(name, size, numArgs, **kwargs):
+    ''' Function decorator to turn a function into a GenericGate that takes
+        argument(s) then applies a series of primitive gates '''
+    def decorate(f):
+        return GenericGate(name, size, numArgs, composite=f, **kwargs)
+    return decorate
+
 GateInstance = namedtuple('GateInstance', 'name, args, bits, divergent, measurement')
 GateInstance.__repr__ = lambda self: (
     '{}({})'.format(self.name, ', '.join(map(str,self.bits)))  if self.args == () else
@@ -15,29 +28,45 @@ GateInstance.__repr__ = lambda self: (
 GateInstance.instanceOf = lambda self, g: self.name == g.name
 
 class GenericGate:
-    def __init__(self, name, size, numArgs, divergent=False, measurement=False):
+    def __init__(self, name, size, numArgs, composite=None, divergent=False, measurement=False):
         self.name = str(name)
         self.size = int(size)
         self.numArgs = int(numArgs)
+        self.composite = composite
         self.divergent = bool(divergent)
         self.measurement = bool(measurement)
-    def __call__(self, *args):
-        assert len(args) == self.numArgs, 'Incorrect number of arguments for generic gate'
-        return Gate(self.name, self.size, args=args, divergent=self.divergent, measurement=self.measurement)
+    def __call__(self, *args, **kwargs):
+        if self.numArgs >= 0:
+            assert len(args) == self.numArgs, 'Incorrect number of arguments for generic gate'
+        if self.composite:
+            concreteComposite = self.composite(*args, **kwargs)
+            if isinstance(concreteComposite, Gate):
+                return concreteComposite
+        else:
+            concreteComposite = None
+        return Gate(self.name, self.size, args=args, divergent=self.divergent,
+                    measurement=self.measurement, composite=concreteComposite)
 
 class Gate:
-    __slots__ = ('name', 'size', 'args', 'divergent', 'measurement')
-    def __init__(self, name, size, args=None, divergent=False, measurement=False):
+    __slots__ = ('name', 'size', 'args', 'composite', 'divergent', 'measurement')
+    def __init__(self, name, size, args=None, composite=None, divergent=False, measurement=False):
         self.name = str(name)
         self.size = int(size)
         self.args = () if args is None else tuple(args)
+        self.composite = composite
         self.divergent = bool(divergent)
         self.measurement = bool(measurement)
     def makeInstance(self, bits):
         return GateInstance(self.name, self.args, tuple(bits), self.divergent, self.measurement)
     def applySingle(self, bits):
-        assert len(bits) == self.size
-        bits[0].state.applyGate(self, bits)
+        if self.size > 0:
+            assert len(bits) == self.size
+        if self.composite:
+            self.composite(*bits)
+        elif self.size != 0:
+            bits[0].state.applyGate(self, bits)
+        else:
+            bits[0].state.applyGate(self, ())
     def __call__(self, *bits, mask=None, littleEndian=None, bigEndian=None):
         if len(bits) == 1 and isinstance(bits[0], collections.abc.Sequence):
             bits = bits[0]
@@ -47,7 +76,7 @@ class Gate:
             else:
                 assert (littleEndian is None) != (bigEndian is None), 'Specify the mask endianness'
                 if littleEndian is not None:
-                    bitEndian = not littleEndian
+                    bigEndian = not littleEndian
                 if bigEndian:
                     mask = util.toTupleBE(mask, len(bits))
                 else:
@@ -59,8 +88,15 @@ class Gate:
             self.applySingle(bits)
 
 
+# Misc
+@composite('noGate', -1)
+def noGate(*bits): pass
+
 # Single bit measurement
 M = Gate('M', 1, measurement=True)
+
+# Zero bit gates
+P = GenericGate('P', 0, numArgs=1)
 
 # One bit gates
 H = Gate('H', 1, divergent=True)
