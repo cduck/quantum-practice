@@ -16,26 +16,41 @@ class Qubit(int):
 
 class QuantumCircuit:
     def __init__(self, n=0):
-        self.n = n
-        self.bitObjs = tuple(Qubit(i, self) for i in range(n))
+        self.n = 0
+        self.bitObjs = ()
         self.ancillaBits = ()
         self.availableAncillaBits = ()
         self.history = []
+        self.regNames = {}
+        self.nameGenIndex = 0
+        self.nameGenList = [chr(i) for i in reversed(range(ord('a'), ord('z'))) if i != ord('q')]
+        if n > 0: self.newRegister(n)
     def __getitem__(self, arg):
         return self.bitObjs[arg]
-    def newRegister(self, n):
-        newBits = tuple(Qubit(i, self) for i in range(self.n, self.n+n))
+    def newRegister(self, n, name=None):
+        rng = range(self.n, self.n+n)
+        newBits = tuple(Qubit(i, self) for i in rng)
         self.bitObjs += newBits
         self.n += n
+        # Update regNames
+        if name is None:
+            if len(self.nameGenList) <= 0: name = 'q'
+            else: name = self.nameGenList.pop()
+        elif name in self.nameGenList:
+            self.nameGenList.remove(name)
+        regBits = self.regNames.get(name, ())
+        self.regNames[name] = regBits + tuple(rng)
         return newBits
-    def newBit(self):
-        return self.newRegister(1)[0]
+    def newBit(self, name=None):
+        if name is None:
+            name = 'q'
+        return self.newRegister(1, name=name)[0]
     def borrowAncilla(self, n):
         if n <= len(self.availableAncillaBits):
             reg = self.availableAncillaBits[:n]
             self.availableAncillaBits = self.availableAncillaBits[n:]
         else:
-            newBits = self.newRegister(n - len(self.availableAncillaBits))
+            newBits = self.newRegister(n - len(self.availableAncillaBits), name='ancilla')
             self.ancillaBits += newBits
             reg = self.availableAncillaBits + newBits
             self.availableAncillaBits = ()
