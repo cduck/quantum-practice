@@ -37,6 +37,8 @@ def createUniformSuperposition(n):
 
 def expandGate(baseGate, finalN):
     baseN = baseGate.shape[0].bit_length() - 1  # Fast log2 of shape[0]
+    if finalN <= baseN:
+        return baseGate
     numCopies = 2**(finalN-baseN)
     copyInterval = 2**baseN
     gate = np.zeros((2**finalN,)*2, dtype=baseGate.dtype)
@@ -44,14 +46,28 @@ def expandGate(baseGate, finalN):
         gate[i*copyInterval:(i+1)*copyInterval,i*copyInterval:(i+1)*copyInterval] = baseGate
     return gate
 
-def swapGate(*bitMap):
+def swapGateDense(*bitMap):
     n = len(bitMap)
-    gate = np.zeros((2**n,)*2, dtype=np.int)  # TODO: Sparse
+    gate = np.zeros((2**n,)*2, dtype=np.int)
     for idxs in itertools.product((0,1), repeat=n):
         x, xr = 0, 0
         for i in range(n):
             x = (x<<1) | idxs[i]
             xr = (xr<<1) | idxs[bitMap[i]]
+        gate[xr, x] = 1
+    return gate
+def swapGate(*bitMap):
+    n = len(bitMap)
+    gate = sparse.lil_matrix((2**n,)*2, dtype=np.int)
+    rows = [None] * 2**n
+    for idxs in itertools.product((0,1), repeat=n):
+        x, xr = 0, 0
+        for i in range(n):
+            x = (x<<1) | idxs[i]
+            xr = (xr<<1) | idxs[bitMap[i]]
+        rows[xr] = x
+    for xr, x in enumerate(rows):
+        # Construct in increasing row order (efficient for LIL format sparse matrix)
         gate[xr, x] = 1
     return gate
 def swapGates(*bitMap):

@@ -164,9 +164,15 @@ class Result:
         self.finalProbability = 1.0
     def _applyGateOpToBits(self, g, bitIList):
         sGate = swapGate(*tuple(i for i in range(self.n) if i not in bitIList), *bitIList)
-        eGate = expandGate(g, self.n)
+        eGate = expandGate(g, min(self.n, 5))
         self.psi = sGate.dot(self.psi)
-        self.psi = eGate.dot(self.psi)
+
+        # Do `self.psi = eGate.dot(self.psi)` in smaller pieces
+        stride = eGate.shape[0]
+        temp = np.empty(stride, dtype=self.psi.dtype)
+        for i in range(0, len(self.psi), stride):
+            self.psi[i:i+stride] = np.dot(eGate, self.psi[i:i+stride], temp)
+
         self.psi = sGate.T.dot(self.psi)
     def _applyOperator(self, op):
         self.psi = op.dot(self.psi)
