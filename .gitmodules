@@ -1,0 +1,3 @@
+[submodule "PlotQCircuit"]
+	path = PlotQCircuit
+	url = https://github.com/rpmuller/PlotQCircuit
