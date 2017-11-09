@@ -1,7 +1,7 @@
 ''' Circuit generation and representation classes '''
 
 import gate
-from gate import Gate
+from gate import Gate, GenericGate
 import util
 
 
@@ -55,7 +55,7 @@ class QuantumCircuit:
         pass
 
     def countGate(self, gateOrName):
-        if isinstance(gateOrName, Gate):
+        if isinstance(gateOrName, (Gate, GenericGate)):
             gateOrName = gateOrName.name
         return util.countMatching(self.history, lambda g: g.name == gateOrName)
     def countM(self):
