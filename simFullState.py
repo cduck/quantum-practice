@@ -32,6 +32,8 @@ import util
 
 supportedGates = {
     'M',
+    # Zero bit
+    'P',
     # Single bit
     'I1',
     'X',
